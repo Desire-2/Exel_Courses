@@ -1,0 +1,24 @@
+Sub ClearOnlyDuplicateHighlights()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim rng As Range
+    
+    Application.ScreenUpdating = False
+    
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> "Duplicate Report" Then
+            Set rng = ws.UsedRange
+            For Each cell In rng
+                ' Only clear if cell has the exact light red highlight color
+                If Not IsEmpty(cell.Value) And cell.Interior.Color = RGB(255, 199, 206) Then
+                    cell.Interior.ColorIndex = xlNone ' Clear fill
+                    cell.Font.ColorIndex = xlAutomatic ' Reset font color
+                End If
+            Next cell
+        End If
+    Next ws
+    
+    Application.ScreenUpdating = True
+    
+    MsgBox "Only duplicate highlights cleared! 🎯✅", vbInformation
+End Sub

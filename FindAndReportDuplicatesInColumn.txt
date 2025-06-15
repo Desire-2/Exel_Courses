@@ -1,0 +1,102 @@
+Sub FindAndReportDuplicatesInColumnB_FromRow9()
+    Dim ws As Worksheet, reportWs As Worksheet
+    Dim cell As Range
+    Dim dict As Object
+    Dim key As Variant
+    Dim reportRow As Long
+    Dim startTime As Double
+    Dim caseSensitive As VbMsgBoxResult
+    Dim valueToStore As String
+    
+    startTime = Timer ' Start timer
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Application.EnableEvents = False
+    
+    ' Ask user for case sensitivity
+    caseSensitive = MsgBox("Do you want the duplicate check to be CASE-SENSITIVE?", vbYesNo + vbQuestion, "Case Sensitivity Option")
+    
+    Set dict = CreateObject("Scripting.Dictionary")
+    
+    ' Delete old "Duplicate Report" if exists
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    ThisWorkbook.Worksheets("Duplicate Report").Delete
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+    
+    ' Create new report sheet
+    Set reportWs = ThisWorkbook.Worksheets.Add
+    reportWs.Name = "Duplicate Report"
+    reportWs.Range("A1:D1").Value = Array("Value", "Count", "Sheet Name", "Cell Address")
+    reportRow = 2
+    
+    ' Step 1: Build dictionary from Column B starting from Row 9
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> "Duplicate Report" Then
+            For Each cell In ws.Range("B9", ws.Cells(ws.Rows.Count, "B").End(xlUp))
+                If cell.Row >= 9 Then ' Double check to ensure only from row 9
+                    If Not IsEmpty(cell.Value) And Not IsError(cell.Value) Then
+                        If caseSensitive = vbNo Then
+                            valueToStore = LCase(cell.Value)
+                        Else
+                            valueToStore = cell.Value
+                        End If
+                        
+                        If dict.exists(valueToStore) Then
+                            dict(valueToStore) = dict(valueToStore) + 1
+                        Else
+                            dict.Add valueToStore, 1
+                        End If
+                    End If
+                End If
+            Next cell
+        End If
+    Next ws
+    
+    ' Step 2: Highlight duplicates and report
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> "Duplicate Report" Then
+            For Each cell In ws.Range("B9", ws.Cells(ws.Rows.Count, "B").End(xlUp))
+                If cell.Row >= 9 Then ' Again, ensure starting from row 9
+                    If Not IsEmpty(cell.Value) And Not IsError(cell.Value) Then
+                        If caseSensitive = vbNo Then
+                            valueToStore = LCase(cell.Value)
+                        Else
+                            valueToStore = cell.Value
+                        End If
+                        
+                        If dict(valueToStore) > 1 Then
+                            ' Highlight the duplicate
+                            cell.Interior.Color = RGB(255, 199, 206) ' Light Red fill
+                            cell.Font.Color = RGB(156, 0, 6) ' Dark Red text
+                            
+                            ' Add to report sheet
+                            reportWs.Cells(reportRow, 1).Value = cell.Value
+                            reportWs.Cells(reportRow, 2).Value = dict(valueToStore)
+                            reportWs.Cells(reportRow, 3).Value = ws.Name
+                            reportWs.Cells(reportRow, 4).Value = cell.Address
+                            reportRow = reportRow + 1
+                        End If
+                    End If
+                End If
+            Next cell
+        End If
+    Next ws
+    
+    ' Step 3: Format the report sheet
+    With reportWs
+        .Columns("A:D").AutoFit
+        .Rows(1).Font.Bold = True
+        .Rows(1).Interior.Color = RGB(0, 112, 192) ' Blue header
+        .Rows(1).Font.Color = vbWhite
+    End With
+    
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    
+    MsgBox "Duplicate scan (Column B, from Row 9) complete! ✅" & vbCrLf & _
+           "Total Duplicates Found: " & reportRow - 2 & vbCrLf & _
+           "Time Taken: " & Format(Timer - startTime, "0.00") & " seconds.", vbInformation
+End Sub
