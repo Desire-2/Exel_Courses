@@ -1,0 +1,215 @@
+Sub SplitNamesAndCalculateAge()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim fullName As String
+    Dim firstName As String
+    Dim lastName As String
+    Dim spacePos As Integer
+    Dim processedSheets As Integer
+    Dim idNumber As String
+    Dim birthYear As Integer
+    Dim currentYear As Integer
+    Dim age As Integer
+    Dim ageCellsProcessed As Long
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    processedSheets = 0
+    ageCellsProcessed = 0
+    currentYear = Year(Date) ' Get current year
+    
+    ' Loop through all worksheets in the workbook
+    For Each ws In ThisWorkbook.Worksheets
+        ' Find the last row in column B starting from row 9
+        lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+        If lastRow < 9 Then lastRow = 8 ' If no data below row 8, set to row 8
+        
+        If lastRow >= 9 Then ' Only process if there's data from row 9 onwards
+            ' Insert two new columns after column B (C and D for names)
+            ws.Columns("C:D").Insert Shift:=xlToRight
+            
+            ' Add headers in row 8
+            ws.Range("C8").Value = "First Name"
+            ws.Range("D8").Value = "Last Name"
+            
+            ' After inserting columns C and D, the original column G becomes column I
+            ' So we need to add the Age header in column J (next to ID in column I)
+            ws.Range("J8").Value = "Age"
+            
+            ' Format header rows
+            With ws.Range("C8:D8")
+                .Font.Bold = True
+                .HorizontalAlignment = xlCenter
+                .Interior.Color = RGB(200, 200, 200)
+                .Borders.Weight = xlThin
+            End With
+            
+            With ws.Range("J8")
+                .Font.Bold = True
+                .HorizontalAlignment = xlCenter
+                .Interior.Color = RGB(200, 200, 200)
+                .Borders.Weight = xlThin
+            End With
+            
+            ' Loop through each row starting from row 9
+            For i = 9 To lastRow
+                ' Process names from column B
+                fullName = Trim(ws.Cells(i, "B").Value)
+                
+                ' Check if cell is empty
+                If fullName = "" Then
+                    ws.Cells(i, "C").Value = ""
+                    ws.Cells(i, "D").Value = ""
+                Else
+                    ' Find the position of the space
+                    spacePos = InStr(fullName, " ")
+                    
+                    If spacePos > 0 Then
+                        ' Split the name at the first space
+                        lastName = Trim(Left(fullName, spacePos - 1))
+                        firstName = Trim(Mid(fullName, spacePos + 1))
+                        
+                        ' Convert last name to UPPERCASE and clean up
+                        lastName = UCase(Trim(lastName))
+                        firstName = Application.Proper(Trim(firstName)) ' Capitalize first letter
+                        
+                        ws.Cells(i, "C").Value = firstName
+                        ws.Cells(i, "D").Value = lastName
+                    Else
+                        ' Only one name found - use "Xxx" for first name
+                        ' Convert the single name to UPPERCASE for last name
+                        ws.Cells(i, "C").Value = "Xxx"
+                        ws.Cells(i, "D").Value = UCase(Trim(fullName))
+                    End If
+                End If
+                
+                ' After inserting columns C and D, the original column G becomes column I
+                ' Process ID numbers from column I
+                idNumber = Trim(ws.Cells(i, "I").Value)
+                
+                If idNumber = "" Then
+                    ' Leave blank if no ID number
+                    ws.Cells(i, "J").Value = ""
+                Else
+                    ' Extract birth year from ID number (2nd digit, take 4 digits forward)
+                    birthYear = ExtractBirthYearFromID(idNumber)
+                    
+                    If birthYear > 0 Then
+                        ' Calculate age: current year - birth year
+                        age = currentYear - birthYear
+                        
+                        ' Additional check: if birth year is in the future, use 2024 as reference
+                        If birthYear > currentYear Then
+                            age = 2024 - birthYear
+                        End If
+                        
+                        ws.Cells(i, "J").Value = age
+                        ageCellsProcessed = ageCellsProcessed + 1
+                    Else
+                        ' Invalid ID format
+                        ws.Cells(i, "J").Value = ""
+                    End If
+                End If
+            Next i
+            
+            ' Apply formatting to the data range
+            If lastRow >= 9 Then
+                ' Format name columns (C and D)
+                With ws.Range("C9:D" & lastRow)
+                    .Borders.Weight = xlThin
+                    .HorizontalAlignment = xlLeft
+                    .VerticalAlignment = xlCenter
+                End With
+                
+                ' Special formatting for last name column - CHANGED TO BLACK
+                With ws.Range("D9:D" & lastRow)
+                    .Font.Bold = True
+                    .Font.Color = RGB(0, 0, 0) ' Changed to black color
+                End With
+                
+                ' Format age column (J) - right-aligned for numbers
+                With ws.Range("J9:J" & lastRow)
+                    .Borders.Weight = xlThin
+                    .HorizontalAlignment = xlRight
+                    .VerticalAlignment = xlCenter
+                    .NumberFormat = "0" ' Format as whole number
+                End With
+                
+                ' Format ID column (I) - keep original formatting
+                With ws.Range("I9:I" & lastRow)
+                    .Borders.Weight = xlThin
+                    .HorizontalAlignment = xlLeft
+                    .VerticalAlignment = xlCenter
+                End With
+            End If
+            
+            ' Auto-fit the new columns for better visibility
+            ws.Columns("C:D").AutoFit
+            ws.Columns("I:J").AutoFit
+            
+            processedSheets = processedSheets + 1
+        End If
+    Next ws
+    
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    
+    MsgBox "Processing completed across " & processedSheets & " worksheet(s)!" & vbCrLf & _
+           "✓ Last names converted to UPPERCASE" & vbCrLf & _
+           "✓ First names properly capitalized" & vbCrLf & _
+           "✓ " & ageCellsProcessed & " age(s) calculated from ID numbers" & vbCrLf & _
+           "✓ ID numbers processed from column I" & vbCrLf & _
+           "✓ Ages displayed in column J" & vbCrLf & _
+           "✓ Last name font color set to black", vbInformation
+End Sub
+
+Function ExtractBirthYearFromID(idNumber As String) As Integer
+    Dim cleanID As String
+    Dim startPos As Integer
+    Dim yearDigits As String
+    
+    ' Remove any non-digit characters from ID
+    cleanID = ""
+    Dim i As Integer
+    For i = 1 To Len(idNumber)
+        If IsNumeric(Mid(idNumber, i, 1)) Then
+            cleanID = cleanID & Mid(idNumber, i, 1)
+        End If
+    Next i
+    
+    ' Check if ID has enough digits (at least 6 digits for 2nd position + 4 digits)
+    If Len(cleanID) < 6 Then
+        ExtractBirthYearFromID = 0
+        Exit Function
+    End If
+    
+    ' Extract 4 digits starting from 2nd digit (position 2-5)
+    startPos = 2
+    yearDigits = Mid(cleanID, startPos, 4)
+    
+    ' Convert to integer and validate
+    If IsNumeric(yearDigits) Then
+        Dim yearValue As Integer
+        yearValue = CInt(yearDigits)
+        
+        ' Validate year range (reasonable birth years)
+        If yearValue >= 1900 And yearValue <= Year(Date) + 1 Then
+            ExtractBirthYearFromID = yearValue
+        Else
+            ' Try alternative: maybe it's a 2-digit year
+            If yearValue >= 0 And yearValue <= 99 Then
+                If yearValue >= 30 Then
+                    ExtractBirthYearFromID = 1900 + yearValue
+                Else
+                    ExtractBirthYearFromID = 2000 + yearValue
+                End If
+            Else
+                ExtractBirthYearFromID = 0
+            End If
+        End If
+    Else
+        ExtractBirthYearFromID = 0
+    End If
+End Function
